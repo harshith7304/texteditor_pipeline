@@ -138,6 +138,7 @@ def main():
     from io import BytesIO
     from PIL import ImageFont, ImageDraw
     import time # Imported for sleep above
+    import math
 
     def image_to_base64(img):
         buffered = BytesIO()
@@ -150,34 +151,47 @@ def main():
     FONT_PATH = root_dir / "fonts" / DEFAULT_FONT
 
     def calculate_font_size(text, box_h, box_w):
-        low, high = 1, 500
-        best = 10 # Default minimum
-        target_h = box_h * 0.90 
-        target_w = box_w * 0.98 # Enforce width limit
-
-        try:
-             # Try loading with a small size to check availability
-             ImageFont.truetype(str(FONT_PATH), 10)
-        except Exception:
-             # Fallback if font file is totally missing (shouldn't happen with repo font)
-             return int(box_h * 0.5)
-
+        """
+        Calculate max font size where text fits in box (handling wrapping).
+        """
+        if not text: return 10
+        
+        low, high = 1, int(box_h)
+        best = 10
+        
+        # Optimization: Longest word width check (must fit horizontally)
+        words = text.split()
+        max_word = max(words, key=len) if words else text
+        
         while low <= high:
             mid = (low + high) // 2
             try:
                 font = ImageFont.truetype(str(FONT_PATH), mid)
-                left, top, right, bottom = font.getbbox(text)
-                h = bottom - top
-                w = right - left
                 
-                # Check BOTH dimensions
-                if h <= target_h and w <= target_w:
+                # 1. Check if longest word fits width
+                # getlength is more accurate than getbbox for width
+                word_w = font.getlength(max_word)
+                if word_w > box_w:
+                    high = mid - 1
+                    continue
+                
+                # 2. Check total wrapping height
+                # Approximate lines = Total Text Width / Box Width
+                total_w = font.getlength(text)
+                num_lines = max(1, math.ceil(total_w / box_w))
+                
+                # Heuristic: Add 10% overflow buffer just in case
+                # Line height typically ~1.2 * font_size
+                required_h = num_lines * (mid * 1.3) 
+                
+                if required_h <= box_h:
                     best = mid
                     low = mid + 1
                 else:
                     high = mid - 1
             except:
                 break
+        
         return best
 
     # --- PREPARE BACKGROUND OBJECT ---
@@ -320,39 +334,6 @@ def main():
             canvas_box_h = bbox["height"] * scale_y
             canvas_box_w = bbox["width"] * scale_x
             
-            # --- DEBUG INFO FOR FIRST TEXT ---
-            if i == 0:
-                with st.sidebar.expander("🕵️‍♀️ Font Debug (Region #1)", expanded=False):
-                    st.write(f"**Font Path**: `{FONT_PATH}`")
-                    st.write(f"**Exists**: `{FONT_PATH.exists()}`")
-                    
-                    # Test Calculation
-                    try:
-                        test_font = ImageFont.truetype(str(FONT_PATH), 10)
-                        st.success("Font loaded successfully!")
-                    except Exception as e:
-                        st.error(f"Font load failed: {e}")
-                    
-                    st.write(f"**Box**: {canvas_box_w:.1f} x {canvas_box_h:.1f}")
-                    st.write(f"**Text**: '{orig_text[:20]}...'")
-                    
-                    # Manual Calc Trace
-                    calc_size = calculate_font_size(orig_text, canvas_box_h, canvas_box_w)
-                    st.write(f"-> **Calculated Size**: {calc_size}")
-                    
-                    # Check metrics at this size
-                    try:
-                        f = ImageFont.truetype(str(FONT_PATH), calc_size)
-                        l, t, r, b = f.getbbox(orig_text)
-                        w = r - l
-                        h = b - t
-                        st.write(f"**Metrics**: {w:.1f} x {h:.1f}")
-                        st.write(f"**Width Util**: {w/canvas_box_w*100:.1f}%")
-                        st.write(f"**Height Util**: {h/canvas_box_h*100:.1f}%")
-                    except:
-                        pass
-            # ---------------------------------
-
             font_size = calculate_font_size(orig_text, canvas_box_h, canvas_box_w)
             
             base_objects.append({
