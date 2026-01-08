@@ -311,6 +311,7 @@ def main():
 
     # 3. Text Objects & Editor Form
     text_updates = {}
+    debug_shown = False
     
     st.sidebar.markdown("---")
     st.sidebar.subheader("")
@@ -335,8 +336,9 @@ def main():
             canvas_box_w = bbox["width"] * scale_x
             
             # --- DEBUG INFO FOR FIRST TEXT (RE-ADDED) ---
-            if i == 0:
-                with st.sidebar.expander("🕵️‍♀️ Font Debug (Region #1)", expanded=True):
+            if not debug_shown:
+                debug_shown = True
+                with st.sidebar.expander("🕵️‍♀️ Font Debug (First Region)", expanded=True):
                     st.info(f"App Version: Wrapp-Aware Fix")
                     
                     st.write(f"**Font Path**: `{FONT_PATH}`")
