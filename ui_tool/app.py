@@ -408,13 +408,20 @@ def main():
                     st.write(f"**Target Box**: {canvas_box_w:.1f}w x {canvas_box_h:.1f}h")
                     st.write(f"**Text**: '{orig_text[:20]}...'")
                     
-                    # Manual Calc Trace
-                    calc_size = calculate_font_size(orig_text, canvas_box_h, canvas_box_w)
+                    # Manual Calc Trace - Use Gemini's font
+                    debug_font_name = gemini.get("primary_font", "Roboto")
+                    debug_font_weight = gemini.get("font_weight", 400)
+                    debug_font_path = get_dynamic_font_path(debug_font_name, debug_font_weight)
+                    
+                    st.write(f"**Dynamic Font**: `{debug_font_name}@{debug_font_weight}`")
+                    st.write(f"**Font File**: `{debug_font_path}`")
+                    
+                    calc_size = calculate_font_size(orig_text, canvas_box_h, canvas_box_w, debug_font_path)
                     st.write(f"-> **Calculated Size**: {calc_size}")
                     
                     # Check metrics at this size
                     try:
-                        f = ImageFont.truetype(str(FONT_PATH), calc_size)
+                        f = ImageFont.truetype(str(debug_font_path), calc_size)
                         # Use getlength for width check as per new logic
                         w = f.getlength(orig_text) # Single line estimation for debug
                         
