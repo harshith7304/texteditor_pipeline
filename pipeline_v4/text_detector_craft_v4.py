@@ -96,6 +96,25 @@ class CraftTextDetector:
             
             print(f"Loading weights from: {self.model_path}")
             
+            # Check if model exists, download if not
+            if not os.path.exists(self.model_path):
+                print(f"Model not found at {self.model_path}. Downloading...")
+                try:
+                    import requests
+                    # Public reliable URL for CRAFT weights (official or widely used fork)
+                    url = "https://github.com/fcakyon/craft-text-detector/releases/download/v0.1/craft_mlt_25k.pth"
+                    response = requests.get(url, stream=True)
+                    response.raise_for_status()
+                    
+                    os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
+                    
+                    with open(self.model_path, "wb") as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                    print(f"Downloaded model to {self.model_path}")
+                except Exception as e:
+                    raise RuntimeError(f"Failed to download model: {e}")
+
             # Load state dict
             if self.cuda:
                 state_dict = torch.load(self.model_path)
