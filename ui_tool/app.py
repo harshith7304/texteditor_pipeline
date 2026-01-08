@@ -320,10 +320,15 @@ def main():
             gemini = region.get("gemini_analysis", {})
             role = gemini.get("role", "body")
             
-            # V4.11 FIX: Exclude Preserved/Protected roles from Editor
+            # V4.12 FIX: Exclude Preserved/Protected roles from Editor
             # Matches backend logic: IF preserved in BG, DO NOT allow editing/rendering on top
-            if role in ["product_text", "logo", "icon", "label", "ui_element", "usp"]:
+            if role in ["product_text", "logo", "icon", "label", "ui_element"]:
                 continue
+            
+            # Hybrid USP: Only show if extracted
+            bg_box = region.get("background_box", {})
+            if role == "usp" and not bg_box.get("detected", False):
+                 continue
                 
             rid = region.get("id", i)
             orig_text = gemini.get("text", "")

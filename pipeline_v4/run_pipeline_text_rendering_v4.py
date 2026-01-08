@@ -157,8 +157,15 @@ def render_text_layer(base_image, report_data, scale_check=True):
         if not gemini: continue
         
         role = gemini.get("role", "body")
-        # V4.11 FIX: Removed 'usp' from render list (it is now preserved in bg)
-        if role not in ["heading", "subheading", "body", "cta"]:
+        
+        # V4.12 FIX: Hybrid Rendering for USP
+        # If 'usp' was Extracted (detected=True), Render it.
+        # If 'usp' was Protected (detected=False), Skip it (Preserved in BG).
+        if role == "usp":
+             bg_box = region.get("background_box", {})
+             if not bg_box.get("detected", False):
+                 continue # Preserved in BG, do not render ghost
+        elif role not in ["heading", "subheading", "body", "cta"]:
             continue
             
         if role not in role_groups:

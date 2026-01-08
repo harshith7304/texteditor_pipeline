@@ -162,8 +162,8 @@ def detect_boxes_in_layer(layer_path: str, text_regions: List[Dict],
 
         # V4.9.5 FIX: Role-Based Exclusion (Primary Fix)
         # If the box ONLY contains protected/preserved roles, it IS the object, not a box.
-        # V4.11 UPDATE: Added 'ui_element' and 'usp' to protected list
-        PROTECTED_ROLES = ["product_text", "logo", "icon", "label", "ui_element", "usp"]
+        # V4.12 UPDATE: Removed 'usp' from strict protected list (handled conditionally below)
+        PROTECTED_ROLES = ["product_text", "logo", "icon", "label", "ui_element"]
         
         # Count how many contained regions are protected
         protected_count = sum(1 for r in full_text_roles if r in PROTECTED_ROLES)
@@ -176,6 +176,16 @@ def detect_boxes_in_layer(layer_path: str, text_regions: List[Dict],
         if protected_count > 0 and (protected_count / len(full_text_roles)) > 0.5:
               print(f"    [FILTER] Dropping component {label_id} - Majority protected roles: {full_text_roles}")
               continue
+
+        # V4.12 FIX: USP Logic ("Solitary USP Only")
+        # User Rule: "if its only usp then remove usp and extract bbox else if other text also present... protect"
+        if "usp" in full_text_roles:
+            # Check if there are ANY non-usp roles
+            other_roles = [r for r in full_text_roles if r != "usp"]
+            if other_roles:
+                print(f"    [FILTER] Dropping component {label_id} - USP mixed with other text {other_roles} -> Protected")
+                continue
+            # Else: It is ONLY 'usp', so we allow it to proceed to extraction.
 
 
         # V4.9.4 FIX: Filter out Small Accessory Boxes (Icons/Bullets)
