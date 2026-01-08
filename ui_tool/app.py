@@ -582,62 +582,187 @@ def main():
     
     final_drawing_objects = updated_objects
 
-    # --- PIPELINE PREVIEW (Shows actual rendered output) ---
-    st.subheader("🎨 Pipeline Preview")
+    # --- CANVA-STYLE INTERACTIVE EDITOR ---
+    st.markdown("---")
+    st.subheader("🎨 Interactive Editor")
     
-    run_dir = data.get("run_dir")
+    st.info("💡 Edit text, drag/resize boxes, then click 'Apply Changes' to update.")
     
-    # Check for existing final_composed.png
-    final_composed_path = Path(run_dir) / "final_composed.png" if run_dir else None
+    col_canvas, col_controls = st.columns([4, 1])
     
-    # Create text updates dict from sidebar form
-    text_edit_updates = {}
-    for key, value in text_updates.items():
-        # Extract region ID from "text_1", "text_2" format
-        rid = key.replace("text_", "")
-        text_edit_updates[rid] = value
-    
-    col_preview, col_controls = st.columns([4, 1])
-    
+    # Pre-load Fonts CSS explicitly
+    # Ensuring fonts are available for Fabric.js
+    if unique_fonts:
+        font_families = []
+        for font_name in unique_fonts.keys():
+            font_families.append(font_name)
+        
+        # Inject standard Google Fonts Link (already done above, but ensuring load)
+        # Also inject a hidden div using these fonts to force browser load
+        hidden_text_spans = "".join([f'<span style="font-family: \'{f}\'">test</span>' for f in font_families])
+        st.markdown(f'''
+            <div style="opacity: 0; height: 1px; overflow: hidden;">{hidden_text_spans}</div>
+        ''', unsafe_allow_html=True)
+
+    with col_canvas:
+        # Preparation: Use Cleaned Background (bg_image) + Interactive Text Objects
+        
+        # 1. Prepare Text Objects for Fabric
+        canvas_text_objects = []
+        for region in text_regions:
+            gemini = region.get("gemini_analysis", {})
+            if not gemini: continue
+            
+            role = gemini.get("role", "body")
+            
+            # Skip residues / protected
+            if region.get("layer_residue", False): continue
+            if role in ["product_text", "logo", "icon", "label", "ui_element"]: continue
+            
+            # Hybrid USP check
+            bg_box = region.get("background_box", {})
+            if role == "usp" and not bg_box.get("detected", False): continue
+            
+            rid = region.get("id")
+            bbox = region["bbox"]
+            text = gemini.get("text", "")
+            # Check for edits
+            if rid in text_updates:
+                text = text_updates[rid]
+                
+            color = gemini.get("text_color", "#000000")
+            font_name = gemini.get("primary_font", "Roboto")
+            font_weight = gemini.get("font_weight", 400)
+            
+            # Scale to canvas
+            # Note: Fabric line-height is ~1.16 by default. PIL is ~1.2.
+            canvas_text_objects.append({
+                "type": "textbox",
+                "version": "4.4.0",
+                "originX": "left", "originY": "top",
+                "left": bbox["x"] * scale_x,
+                "top": bbox["y"] * scale_y,
+                "width": bbox["width"] * scale_x,
+                "height": bbox["height"] * scale_y,
+                "text": text,
+                "fontSize": int(bbox["height"] * scale_y * 0.75), # Tuning
+                "fontFamily": font_name,
+                "fontWeight": font_weight,
+                "fill": color,
+                "backgroundColor": "transparent",
+                "editable": True,
+                "selectable": True,
+                "u_id": f"text_{rid}"
+            })
+
+        # 2. Render Canvas
+        c_key = f"canvas_{selected_run_id}_v{st.session_state.canvas_version}"
+        
+        # Use background_image (cleaned layout) if available
+        # Note: We must NOT use final_composed.png here, or we get double text.
+        # bg_image loaded in Step 2 is the one we want.
+        final_bg = bg_image.resize((canvas_width, canvas_height), Image.Resampling.LANCZOS) if bg_image else None
+        
+        # Inject CSS fallback for background just in case
+        if final_bg:
+            import base64
+            from io import BytesIO
+            buffered = BytesIO()
+            final_bg.save(buffered, format="PNG")
+            img_b64 = base64.b64encode(buffered.getvalue()).decode()
+            st.markdown(f'''
+            <style>
+                [data-testid="stCanvas"] canvas {{
+                    background-image: url("data:image/png;base64,{img_b64}") !important;
+                    background-size: contain !important;
+                    background-repeat: no-repeat !important;
+                    background-position: center !important;
+                }}
+            </style>
+            ''', unsafe_allow_html=True)
+
+        
+        canvas_result = st_canvas(
+            fill_color="rgba(255, 165, 0, 0.3)",
+            stroke_width=2,
+            stroke_color="#000000",
+            background_color="transparent", # Rely on CSS
+            update_streamlit=True,
+            height=canvas_height,
+            width=canvas_width,
+            drawing_mode="transform",
+            initial_drawing={"version": "4.4.0", "objects": canvas_text_objects},
+            key=c_key,
+        )
+        
+        if canvas_result.json_data:
+            st.session_state.last_canvas_state = canvas_result.json_data
+
     with col_controls:
         st.markdown("### Actions")
         
-        # Re-render button
-        if st.button("🔄 Re-render with Edits", type="primary"):
-            if run_dir:
-                with st.spinner("Rendering with pipeline..."):
-                    rendered_img = backend.render_with_pipeline(run_dir, text_edit_updates)
+        if st.button("💾 Apply Changes", type="primary"):
+            if canvas_result.json_data and run_dir:
+                with st.spinner("Applying changes and re-rendering..."):
+                    # 1. Parse Canvas State
+                    objects = canvas_result.json_data.get("objects", [])
+                    
+                    text_updates_map = {}
+                    position_updates_map = {}
+                    
+                    for obj in objects:
+                        if obj.get("type") == "textbox":
+                            uid = obj.get("u_id", "")
+                            if uid.startswith("text_"):
+                                rid = uid.replace("text_", "")
+                                
+                                # Text Content
+                                text_updates_map[rid] = obj.get("text", "")
+                                
+                                # Position (Scale back to original)
+                                position_updates_map[rid] = {
+                                    "x": int(obj["left"] / scale_x),
+                                    "y": int(obj["top"] / scale_y),
+                                    "width": int(obj["width"] * obj.get("scaleX", 1) / scale_x),
+                                    "height": int(obj["height"] * obj.get("scaleY", 1) / scale_y)
+                                }
+                    
+                    # 2. Update Report JSON (Positions)
+                    report_path = Path(run_dir) / "pipeline_report_with_boxes.json"
+                    if not report_path.exists(): report_path = Path(run_dir) / "pipeline_report.json"
+                    
+                    if report_path.exists():
+                        with open(report_path, "r") as f:
+                            updated_report = json.load(f)
+                        
+                        for region in updated_report.get("text_detection", {}).get("regions", []):
+                            rid_str = str(region.get("id"))
+                            if rid_str in position_updates_map:
+                                region["bbox"] = position_updates_map[rid_str]
+                        
+                        with open(report_path, "w") as f:
+                            json.dump(updated_report, f, indent=2)
+
+                    # 3. Call Pipeline Rendering (Text Content updates passed directly)
+                    rendered_img = backend.render_with_pipeline(run_dir, text_updates_map)
+                    
                     if rendered_img:
-                        st.success("✅ Rendered!")
-                        st.session_state.pipeline_preview_updated = True
+                        st.success("✅ Updated!")
+                        st.session_state.canvas_version += 1
                         st.rerun()
                     else:
-                        st.error("Rendering failed")
-            else:
-                st.error("No run directory found")
-        
-        # Download button
+                        st.error("Update failed.")
+                        
+        # Download
+        final_composed_path = Path(run_dir) / "final_composed.png"
         if final_composed_path and final_composed_path.exists():
-            with open(final_composed_path, "rb") as f:
+             with open(final_composed_path, "rb") as f:
                 st.download_button(
-                    label="📥 Download Final",
+                    label="📥 Download Result",
                     data=f,
                     file_name="final_composed.png",
                     mime="image/png"
                 )
-    
-    with col_preview:
-        if final_composed_path and final_composed_path.exists():
-            # Show the actual pipeline-rendered image
-            st.image(str(final_composed_path), caption="Pipeline Output (final_composed.png)", use_container_width=True)
-        else:
-            st.warning("No final_composed.png found. Click 'Re-render with Edits' to generate.")
-    
-    # --- INTERACTIVE EDITOR (Pipeline Output + Positioning Overlays) ---
-    st.markdown("---")
-    st.subheader("🎨 Interactive Editor")
-    
-    st.info("💡 The image below is your exact pipeline output. Drag the colored boxes to reposition text, then click 'Apply & Re-render'.")
     
     # Prepare positioning overlay rectangles (just for dragging, no text rendering)
     positioning_boxes = []
