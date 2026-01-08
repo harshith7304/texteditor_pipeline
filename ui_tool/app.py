@@ -388,8 +388,8 @@ def main():
                 with st.sidebar.expander("🕵️‍♀️ Font Debug (First Region)", expanded=True):
                     st.info(f"App Version: Wrapp-Aware Fix")
                     
-                    st.write(f"**Font Path**: `{FONT_PATH}`")
-                    st.write(f"**Exists**: `{FONT_PATH.exists()}`")
+                    st.write(f"**Font Path**: `{FALLBACK_FONT_PATH}`")
+                    st.write(f"**Exists**: `{FALLBACK_FONT_PATH.exists()}`")
                     
                     # Scaling Debug
                     st.write("---")
@@ -399,7 +399,7 @@ def main():
                     
                     # Test Calculation
                     try:
-                        test_font = ImageFont.truetype(str(FONT_PATH), 10)
+                        test_font = ImageFont.truetype(str(FALLBACK_FONT_PATH), 10)
                         st.success("Font loaded successfully!")
                     except Exception as e:
                         st.error(f"Font load failed: {e}")
