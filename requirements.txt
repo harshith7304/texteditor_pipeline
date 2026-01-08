@@ -15,6 +15,6 @@ torch>=1.7.0
 torchvision>=0.8.0
 streamlit
 streamlit-drawable-canvas
-google-generativeai
+google-genai
 python-dotenv
 requests
