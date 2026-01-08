@@ -147,7 +147,7 @@ def run_pipeline_v4(run_dir: str):
 
 if __name__ == "__main__":
     # Default to the most recent run ID edited by the user if no arg provided
-    DEFAULT_RUN_ID = "run_1767604948_layered" 
+    DEFAULT_RUN_ID = "run_1767874217_layered" 
     DEFAULT_BASE_DIR = Path("pipeline_outputs") / DEFAULT_RUN_ID
     
     target_dir = str(DEFAULT_BASE_DIR)
