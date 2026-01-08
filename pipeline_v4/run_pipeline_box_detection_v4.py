@@ -577,5 +577,5 @@ def run_box_detection_pipeline(run_dir: str):
 
 if __name__ == "__main__":
     # Hardcoded for testing
-    RUN_DIR = "pipeline_outputs/run_1767874217_layered"
+    RUN_DIR = "pipeline_outputs/run_1767882943_layered"
     run_box_detection_pipeline(RUN_DIR)
