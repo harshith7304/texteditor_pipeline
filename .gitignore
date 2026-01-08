@@ -7,6 +7,8 @@ venv/
 
 # Models
 *.pth
+!CRAFT-pytorch/craft_mlt_25k.pth
+
 
 # Outputs
 # outputs/
