@@ -156,6 +156,11 @@ def render_text_layer(base_image, report_data, scale_check=True):
         gemini = region.get("gemini_analysis", {})
         if not gemini: continue
         
+        # V4.13 FIX: Skip if text is residue on background (Qwen failed to layer)
+        if region.get("layer_residue", False):
+            print(f"  [SKIP] Region {region.get('id')} - Residue on Layer 0, not rendering.")
+            continue
+        
         role = gemini.get("role", "body")
         
         # V4.12 FIX: Hybrid Rendering for USP

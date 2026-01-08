@@ -163,6 +163,69 @@ def clean_layers(layer_paths, output_dir, global_craft_result, gemini_results, o
 
     return cleaned_paths, cleaning_report
 
+def detect_layer0_residue(layer0_path, global_regions, gemini_map, orig_size):
+    """
+    V4.13: Detect if 'Removable' text is still visible on Layer 0 (Background).
+    If Qwen failed to layer text properly, it stays on Layer 0.
+    We detect it here and mark those regions to skip rendering.
+    
+    Returns: List of region IDs that have residue on Layer 0.
+    """
+    REMOVE_ROLES = ["heading", "subheading", "body", "cta", "usp"]
+    
+    print("\n[STEP 4.5] Detecting Layer 0 Residue...")
+    
+    # 1. Run CRAFT on Layer 0
+    detector = CraftTextDetector(cuda=False, merge_lines=True, text_threshold=0.5)
+    layer0_img = cv2.imread(str(layer0_path))
+    if layer0_img is None:
+        print("  [Warning] Could not load Layer 0 for residue check.")
+        return []
+    
+    layer0_result = detector.detect(layer0_img)
+    l0_regions = layer0_result.get("text_regions", [])
+    print(f"  > CRAFT found {len(l0_regions)} text regions on Layer 0.")
+    
+    if not l0_regions:
+        print("  > No text detected on Layer 0. All clear!")
+        return []
+    
+    # 2. Get Layer Scale
+    l_h, l_w = layer0_img.shape[:2]
+    orig_h, orig_w = orig_size[:2]
+    sx, sy = l_w / orig_w, l_h / orig_h
+    
+    residue_ids = []
+    
+    # 3. For each Global Region marked as Removable, check if it's on Layer 0
+    for region in global_regions:
+        rid = str(region["id"])
+        role = gemini_map.get(rid, {}).get("role", "body").lower().strip()
+        
+        if role not in REMOVE_ROLES:
+            continue  # Only check Removable roles
+        
+        # Scale global bbox center to layer coords
+        g_bbox = region["bbox"]
+        l_cx = (g_bbox["x"] + g_bbox["width"] / 2) * sx
+        l_cy = (g_bbox["y"] + g_bbox["height"] / 2) * sy
+        
+        # Check if any Layer 0 detection overlaps this center
+        for l0_region in l0_regions:
+            l0_poly = np.array(l0_region["polygon"], dtype=np.int32)
+            if cv2.pointPolygonTest(l0_poly, (l_cx, l_cy), False) >= 0:
+                text_preview = gemini_map.get(rid, {}).get("text", "")[:20]
+                print(f"  [Residue] Region {rid} ('{role}': '{text_preview}...') found on Layer 0!")
+                residue_ids.append(rid)
+                break
+    
+    if residue_ids:
+        print(f"  > Total residue regions: {len(residue_ids)}")
+    else:
+        print("  > No removable text residue detected on Layer 0.")
+    
+    return residue_ids
+
 def run_pipeline_layered(image_path_str: str, mock_layers_dir: str = None) -> str:
     """
     Run the full layered pipeline on an image.
@@ -300,16 +363,36 @@ def run_pipeline_layered(image_path_str: str, mock_layers_dir: str = None) -> st
     cleaned_layers, cleaning_report = clean_layers(layer_paths, layers_dir, craft_result, gemini_results, orig_img.shape, original_img=orig_img)
     
     # ------------------------------------------------------------------
+    # STEP 4.5: Layer Residue Detection (V4.13)
+    # ------------------------------------------------------------------
+    gemini_map = {str(res["region_id"]): res["analysis"] for res in gemini_results}
+    
+    # Find Layer 0 path from cleaned layers
+    layer0_path = None
+    for lp in cleaned_layers:
+        if "layer_0" in Path(lp).name.lower():
+            layer0_path = lp
+            break
+    
+    residue_ids = []
+    if layer0_path:
+        residue_ids = detect_layer0_residue(layer0_path, craft_result["text_regions"], gemini_map, orig_img.shape)
+    
+    # ------------------------------------------------------------------
     # Reporting
     # ------------------------------------------------------------------
     print("\n[Step 5] Generating JSON Report...")
-    gemini_map = {str(res["region_id"]): res["analysis"] for res in gemini_results}
     enriched_regions = []
     for region in craft_result["text_regions"]:
         rid = str(region["id"])
         r_data = region.copy()
         if "cropped_base64" in r_data: del r_data["cropped_base64"]
         r_data["gemini_analysis"] = gemini_map.get(rid, None)
+        
+        # V4.13: Mark residue
+        if rid in residue_ids:
+            r_data["layer_residue"] = True
+        
         enriched_regions.append(r_data)
         
     final_report = {

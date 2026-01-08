@@ -66,7 +66,7 @@ def run_qwen_layered(image_path: str, output_dir: Path = None):
     # Optimized Prompting for Text/CTA Separation
     # Positive: Describes clarity and essential elements to help model focus (reduces hallucinations)
     # Negative: Standard quality guardrails
-    prompt = "the image features a distinct call-to-action button, text headings, text subheadings and text overlays"
+    prompt = "A high-quality professional advertisement image features different sizes of text, clear text overlays and a distinct call-to-action button"
     negative_prompt = "blurry, low quality, distortion, noise, artifacts, messy, jpeg artifacts"
 
     payload = {

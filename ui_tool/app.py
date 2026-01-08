@@ -320,6 +320,10 @@ def main():
             gemini = region.get("gemini_analysis", {})
             role = gemini.get("role", "body")
             
+            # V4.13 FIX: Skip if text is residue on background
+            if region.get("layer_residue", False):
+                continue
+            
             # V4.12 FIX: Exclude Preserved/Protected roles from Editor
             # Matches backend logic: IF preserved in BG, DO NOT allow editing/rendering on top
             if role in ["product_text", "logo", "icon", "label", "ui_element"]:
