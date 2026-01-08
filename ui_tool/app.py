@@ -643,24 +643,18 @@ def main():
             # Dynamic Key to force update when needed
             c_key = f"canvas_{selected_run_id}_v{st.session_state.canvas_version}"
             
-            # Use final_composed.png as background if it exists
-            canvas_bg_image = None
-            if final_composed_path and final_composed_path.exists():
-                canvas_bg_image = Image.open(final_composed_path)
-                # Resize to canvas dimensions
-                canvas_bg_image = canvas_bg_image.resize((canvas_width, canvas_height), Image.Resampling.LANCZOS)
-            
+            # Note: background_image in st_canvas is broken in newer Streamlit versions
+            # The rendered result is shown in Pipeline Preview above
             canvas_result = st_canvas(
                 fill_color="rgba(255, 165, 0, 0.3)",
                 stroke_width=2,
                 stroke_color="#000000",
-                background_image=canvas_bg_image,
-                background_color="#ffffff",
+                background_color="#eeeeee",
                 update_streamlit=True,
                 height=canvas_height,
                 width=canvas_width,
-                drawing_mode="transform",
-                initial_drawing={"version": "4.4.0", "objects": []},  # No overlays, image is rendered
+                drawing_mode="freedraw",
+                initial_drawing={"version": "4.4.0", "objects": []},
                 key=c_key,
             )
             

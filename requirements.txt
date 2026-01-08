@@ -14,7 +14,7 @@ Pillow>=8.0.0
 torch>=1.7.0
 torchvision>=0.8.0
 streamlit
-streamlit-drawable-canvas
+streamlit-drawable-canvas==0.9.3
 google-genai
 python-dotenv
 requests
