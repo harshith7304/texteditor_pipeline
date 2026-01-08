@@ -157,7 +157,8 @@ def render_text_layer(base_image, report_data, scale_check=True):
         if not gemini: continue
         
         role = gemini.get("role", "body")
-        if role not in ["heading", "subheading", "body", "cta", "usp"]:
+        # V4.11 FIX: Removed 'usp' from render list (it is now preserved in bg)
+        if role not in ["heading", "subheading", "body", "cta"]:
             continue
             
         if role not in role_groups:
