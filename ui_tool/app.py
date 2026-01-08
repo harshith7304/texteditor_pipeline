@@ -578,8 +578,61 @@ def main():
     
     final_drawing_objects = updated_objects
 
+    # --- PIPELINE PREVIEW (Shows actual rendered output) ---
+    st.subheader("🎨 Pipeline Preview")
     
-    col1, col2 = st.columns([5, 1])
+    run_dir = data.get("run_dir")
+    
+    # Check for existing final_composed.png
+    final_composed_path = Path(run_dir) / "final_composed.png" if run_dir else None
+    
+    # Create text updates dict from sidebar form
+    text_edit_updates = {}
+    for key, value in text_updates.items():
+        # Extract region ID from "text_1", "text_2" format
+        rid = key.replace("text_", "")
+        text_edit_updates[rid] = value
+    
+    col_preview, col_controls = st.columns([4, 1])
+    
+    with col_controls:
+        st.markdown("### Actions")
+        
+        # Re-render button
+        if st.button("🔄 Re-render with Edits", type="primary"):
+            if run_dir:
+                with st.spinner("Rendering with pipeline..."):
+                    rendered_img = backend.render_with_pipeline(run_dir, text_edit_updates)
+                    if rendered_img:
+                        st.success("✅ Rendered!")
+                        st.session_state.pipeline_preview_updated = True
+                        st.rerun()
+                    else:
+                        st.error("Rendering failed")
+            else:
+                st.error("No run directory found")
+        
+        # Download button
+        if final_composed_path and final_composed_path.exists():
+            with open(final_composed_path, "rb") as f:
+                st.download_button(
+                    label="📥 Download Final",
+                    data=f,
+                    file_name="final_composed.png",
+                    mime="image/png"
+                )
+    
+    with col_preview:
+        if final_composed_path and final_composed_path.exists():
+            # Show the actual pipeline-rendered image
+            st.image(str(final_composed_path), caption="Pipeline Output (final_composed.png)", use_container_width=True)
+        else:
+            st.warning("No final_composed.png found. Click 'Re-render with Edits' to generate.")
+    
+    # --- CANVAS EDITOR (for positioning) ---
+    st.markdown("---")
+    with st.expander("🔧 Advanced: Canvas Editor (for positioning)", expanded=False):
+        col1, col2 = st.columns([5, 1])
     
     with col1:
         st.subheader("Interactive Editor")

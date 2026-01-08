@@ -162,3 +162,78 @@ def get_draggable_objects(report, canvas_width, canvas_height):
         pass
 
     return text_regions
+
+def render_with_pipeline(run_dir, text_updates=None):
+    """
+    Call the ACTUAL pipeline text rendering to produce final_composed.png.
+    This ensures 100% parity with terminal execution.
+    
+    Args:
+        run_dir: Path to the pipeline run directory
+        text_updates: Optional dict of {region_id: new_text} for edited text
+        
+    Returns:
+        PIL Image of the final composed result
+    """
+    import sys
+    from pathlib import Path
+    
+    run_path = Path(run_dir)
+    
+    # Import pipeline functions
+    root_dir = run_path.parent.parent  # Go up from pipeline_outputs/run_xxx to project root
+    if str(root_dir) not in sys.path:
+        sys.path.insert(0, str(root_dir))
+    
+    try:
+        from pipeline_v4.run_pipeline_text_rendering_v4 import (
+            composite_layers, 
+            draw_background_boxes, 
+            render_text_layer
+        )
+    except ImportError as e:
+        print(f"Pipeline import error: {e}")
+        return None
+    
+    # Load report
+    report_path = run_path / "pipeline_report_with_boxes.json"
+    if not report_path.exists():
+        report_path = run_path / "pipeline_report.json"
+    
+    if not report_path.exists():
+        print("Report not found")
+        return None
+    
+    with open(report_path, "r") as f:
+        report = json.load(f)
+    
+    # Apply text modifications if provided
+    if text_updates:
+        for region in report.get("text_detection", {}).get("regions", []):
+            rid = str(region.get("id"))
+            if rid in text_updates:
+                if "gemini_analysis" in region and region["gemini_analysis"]:
+                    region["gemini_analysis"]["text"] = text_updates[rid]
+    
+    # Get original dimensions
+    orig_size = report.get("original_size", {})
+    orig_w = orig_size.get("width", 1080)
+    orig_h = orig_size.get("height", 1920)
+    
+    # Execute pipeline rendering (same as terminal)
+    print("[Backend] Compositing layers...")
+    final_img = composite_layers(run_path, report)
+    
+    print("[Backend] Drawing background boxes...")
+    final_img = draw_background_boxes(final_img, report, orig_w, orig_h, run_path)
+    
+    print("[Backend] Rendering text layer...")
+    final_img = render_text_layer(final_img, report)
+    
+    # Save and return
+    out_path = run_path / "final_composed.png"
+    final_img.save(out_path)
+    print(f"[Backend] Saved: {out_path}")
+    
+    return final_img
+
