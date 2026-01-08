@@ -144,8 +144,10 @@ def main():
         img.save(buffered, format="PNG")
         return base64.b64encode(buffered.getvalue()).decode()
 
-    # Use a default font path that exists on Windows
-    FONT_PATH = "arial.ttf" 
+    # Use a bundled font path that exists in the repo
+    # This fixes issues on Streamlit Cloud (Linux) where arial.ttf is missing
+    DEFAULT_FONT = "Roboto-400.ttf"
+    FONT_PATH = root_dir / "fonts" / DEFAULT_FONT
 
     def calculate_font_size(text, box_h, box_w):
         low, high = 1, 500
@@ -154,14 +156,16 @@ def main():
         target_w = box_w * 0.98 # Enforce width limit
 
         try:
-             ImageFont.truetype(FONT_PATH, 10)
-        except:
+             # Try loading with a small size to check availability
+             ImageFont.truetype(str(FONT_PATH), 10)
+        except Exception:
+             # Fallback if font file is totally missing (shouldn't happen with repo font)
              return int(box_h * 0.5)
 
         while low <= high:
             mid = (low + high) // 2
             try:
-                font = ImageFont.truetype(FONT_PATH, mid)
+                font = ImageFont.truetype(str(FONT_PATH), mid)
                 left, top, right, bottom = font.getbbox(text)
                 h = bottom - top
                 w = right - left
