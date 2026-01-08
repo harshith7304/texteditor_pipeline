@@ -175,19 +175,20 @@ def detect_layer0_residue(layer0_path, global_regions, gemini_map, orig_size):
     
     print("\n[STEP 4.5] Detecting Layer 0 Residue...")
     
-    # 1. Run CRAFT on Layer 0
+    # 1. Run CRAFT on Layer 0 (pass path, not image)
     detector = CraftTextDetector(cuda=False, merge_lines=True, text_threshold=0.5)
-    layer0_img = cv2.imread(str(layer0_path))
-    if layer0_img is None:
-        print("  [Warning] Could not load Layer 0 for residue check.")
-        return []
-    
-    layer0_result = detector.detect(layer0_img)
+    layer0_result = detector.detect(str(layer0_path))  # Pass path string
     l0_regions = layer0_result.get("text_regions", [])
     print(f"  > CRAFT found {len(l0_regions)} text regions on Layer 0.")
     
     if not l0_regions:
         print("  > No text detected on Layer 0. All clear!")
+        return []
+    
+    # 2. Load image to get dimensions for scaling
+    layer0_img = cv2.imread(str(layer0_path))
+    if layer0_img is None:
+        print("  [Warning] Could not load Layer 0 for residue check.")
         return []
     
     # 2. Get Layer Scale
@@ -412,7 +413,7 @@ def run_pipeline_layered(image_path_str: str, mock_layers_dir: str = None) -> st
 
 if __name__ == "__main__":
     # Test
-    IMAGE_PATH = r"image\IMAGE_CTA_BOX\Sparkling Family Joy.png"
-    MOCK_DIR = r"outputs\IMAGE_CTA_BOX\Sparkling Family Joy_2"
+    IMAGE_PATH = r"image/IMAGE_CTA_BOX/Sparkling Family Joy.png"
+    MOCK_DIR = r"outputs/IMAGE_CTA_BOX/Sparkling Family Joy_v4_t"
     run_pipeline_layered(IMAGE_PATH, MOCK_DIR)
     pass
