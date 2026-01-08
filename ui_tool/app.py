@@ -633,34 +633,102 @@ def main():
         else:
             st.warning("No final_composed.png found. Click 'Re-render with Edits' to generate.")
     
-    # --- CANVAS EDITOR (for positioning) ---
+    # --- CANVA-STYLE EDITOR ---
     st.markdown("---")
-    with st.expander("🔧 Advanced: Canvas Editor (for positioning)", expanded=True):
-        col1, col2 = st.columns([5, 1])
+    st.subheader("🎨 Interactive Editor")
+    
+    # Prepare text objects for canvas (scaled to display size)
+    canvas_text_objects = []
+    for region in text_regions:
+        gemini = region.get("gemini_analysis", {})
+        if not gemini:
+            continue
         
-        with col1:
-            st.subheader("Interactive Editor")
-            # Dynamic Key to force update when needed
-            c_key = f"canvas_{selected_run_id}_v{st.session_state.canvas_version}"
-            
-            # Note: background_image in st_canvas is broken in newer Streamlit versions
-            # The rendered result is shown in Pipeline Preview above
-            canvas_result = st_canvas(
-                fill_color="rgba(255, 165, 0, 0.3)",
-                stroke_width=2,
-                stroke_color="#000000",
-                background_color="#eeeeee",
-                update_streamlit=True,
-                height=canvas_height,
-                width=canvas_width,
-                drawing_mode="freedraw",
-                initial_drawing={"version": "4.4.0", "objects": []},
-                key=c_key,
-            )
-            
-            # Save state for next run
-            if canvas_result.json_data:
-                st.session_state.last_canvas_state = canvas_result.json_data
+        role = gemini.get("role", "body")
+        
+        # Skip protected roles and residue
+        if region.get("layer_residue", False):
+            continue
+        if role in ["product_text", "logo", "icon", "label", "ui_element"]:
+            continue
+        
+        # Hybrid USP check
+        bg_box = region.get("background_box", {})
+        if role == "usp" and not bg_box.get("detected", False):
+            continue
+        
+        rid = region.get("id")
+        bbox = region["bbox"]
+        text = gemini.get("text", "")
+        color = gemini.get("text_color", "#000000")
+        font_name = gemini.get("primary_font", "Roboto")
+        font_weight = gemini.get("font_weight", 400)
+        
+        # Scale to canvas coordinates
+        canvas_text_objects.append({
+            "type": "textbox",
+            "version": "4.4.0",
+            "originX": "left",
+            "originY": "top",
+            "left": bbox["x"] * scale_x,
+            "top": bbox["y"] * scale_y,
+            "width": bbox["width"] * scale_x,
+            "height": bbox["height"] * scale_y,
+            "text": text,
+            "fontSize": int(bbox["height"] * scale_y * 0.7),  # Approximate
+            "fontFamily": font_name,
+            "fontWeight": font_weight,
+            "fill": color,
+            "editable": True,
+            "selectable": True,
+            "u_id": f"text_{rid}",
+        })
+    
+    # Inject CSS to set background image on canvas
+    if final_composed_path and final_composed_path.exists():
+        import base64
+        with open(final_composed_path, "rb") as img_file:
+            img_b64 = base64.b64encode(img_file.read()).decode()
+        
+        # CSS to overlay image as canvas background
+        st.markdown(f'''
+        <style>
+            /* Target the canvas container and set background */
+            .stCanvas > div > canvas {{
+                background-image: url("data:image/png;base64,{img_b64}") !important;
+                background-size: contain !important;
+                background-repeat: no-repeat !important;
+                background-position: center !important;
+            }}
+            /* Also target by key if possible */
+            [data-testid="stCanvas"] canvas {{
+                background-image: url("data:image/png;base64,{img_b64}") !important;
+                background-size: contain !important;
+            }}
+        </style>
+        ''', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns([5, 1])
+    
+    with col1:
+        c_key = f"canvas_{selected_run_id}_v{st.session_state.canvas_version}"
+        
+        canvas_result = st_canvas(
+            fill_color="rgba(255, 165, 0, 0.3)",
+            stroke_width=2,
+            stroke_color="#e74c3c",
+            background_color="transparent",  # Let CSS handle background
+            update_streamlit=True,
+            height=canvas_height,
+            width=canvas_width,
+            drawing_mode="transform",
+            initial_drawing={"version": "4.4.0", "objects": canvas_text_objects},
+            key=c_key,
+        )
+        
+        # Save state for position tracking
+        if canvas_result.json_data:
+            st.session_state.last_canvas_state = canvas_result.json_data
             
         with col2:
             st.subheader("Data Inspector")
