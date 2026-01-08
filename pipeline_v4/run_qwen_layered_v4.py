@@ -24,8 +24,8 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-INPUT_IMAGE = "image\IMAGE_CTA_BOX\Campus Spark Velocity.png"
-OUTPUT_DIR = Path("outputs/IMAGE_CTA_BOX/Campus Spark Velocity_3")
+INPUT_IMAGE = "image\IMAGE_CTA_BOX\Sparkling Family Joy.png"
+OUTPUT_DIR = Path("outputs/IMAGE_CTA_BOX/Sparkling Family Joy_v4.png")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -66,7 +66,7 @@ def run_qwen_layered(image_path: str, output_dir: Path = None):
     # Optimized Prompting for Text/CTA Separation
     # Positive: Describes clarity and essential elements to help model focus (reduces hallucinations)
     # Negative: Standard quality guardrails
-    prompt = "A high-quality professional advertisement image features clear text overlays and a distinct call-to-action button"
+    prompt = "the image features large text headings, text overlays and a distinct call-to-action button"
     negative_prompt = "blurry, low quality, distortion, noise, artifacts, messy, jpeg artifacts"
 
     payload = {
