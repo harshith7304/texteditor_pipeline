@@ -334,6 +334,65 @@ def main():
             canvas_box_h = bbox["height"] * scale_y
             canvas_box_w = bbox["width"] * scale_x
             
+            # --- DEBUG INFO FOR FIRST TEXT (RE-ADDED) ---
+            if i == 0:
+                with st.sidebar.expander("🕵️‍♀️ Font Debug (Region #1)", expanded=True):
+                    st.info(f"App Version: Wrapp-Aware Fix")
+                    
+                    st.write(f"**Font Path**: `{FONT_PATH}`")
+                    st.write(f"**Exists**: `{FONT_PATH.exists()}`")
+                    
+                    # Scaling Debug
+                    st.write("---")
+                    st.write(f"**Orig Img W**: {orig_w}")
+                    st.write(f"**Display W**: {img_display_width}")
+                    st.write(f"**Scale X**: {scale_x:.4f}")
+                    
+                    # Test Calculation
+                    try:
+                        test_font = ImageFont.truetype(str(FONT_PATH), 10)
+                        st.success("Font loaded successfully!")
+                    except Exception as e:
+                        st.error(f"Font load failed: {e}")
+                    
+                    st.write("---")
+                    st.write(f"**Target Box**: {canvas_box_w:.1f}w x {canvas_box_h:.1f}h")
+                    st.write(f"**Text**: '{orig_text[:20]}...'")
+                    
+                    # Manual Calc Trace
+                    calc_size = calculate_font_size(orig_text, canvas_box_h, canvas_box_w)
+                    st.write(f"-> **Calculated Size**: {calc_size}")
+                    
+                    # Check metrics at this size
+                    try:
+                        f = ImageFont.truetype(str(FONT_PATH), calc_size)
+                        # Use getlength for width check as per new logic
+                        w = f.getlength(orig_text) # Single line estimation for debug
+                        
+                        # For height, we need the messy bbox
+                        l, t, r, b = f.getbbox(orig_text)
+                        h = b - t
+                        
+                        st.write(f"**Actual Text W**: {w:.1f}")
+                        st.write(f"**Actual Text H**: {h:.1f}")
+                        
+                        if w > 0:
+                            st.write(f"**Width Util**: {w/canvas_box_w*100:.1f}%")
+                        if h > 0:
+                            st.write(f"**Height Util**: {h/canvas_box_h*100:.1f}%")
+                            
+                        # Word Check
+                        words = orig_text.split()
+                        if words:
+                            max_word = max(words, key=len)
+                            mw_w = f.getlength(max_word)
+                            st.write(f"**Longest Word '{max_word}' W**: {mw_w:.1f}")
+                            if mw_w > canvas_box_w:
+                                st.error(f"⚠️ Word overflow! {mw_w:.1f} > {canvas_box_w:.1f}")
+                    except Exception as e:
+                        st.write(f"Metric Check Error: {e}")
+            # ---------------------------------
+            
             font_size = calculate_font_size(orig_text, canvas_box_h, canvas_box_w)
             
             base_objects.append({
