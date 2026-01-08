@@ -51,13 +51,17 @@ def main():
                 status_container.info("📦 Detecting Background Boxes...")
                 run_box_detection_pipeline(run_dir)
                 
-                # 3. Complete
+                # 3. Text Rendering (Auto-render so image appears immediately)
+                status_container.info("✏️ Rendering Text...")
+                backend.render_with_pipeline(run_dir)
+                
+                # 4. Complete
                 status_container.success("✅ Pipeline Complete!")
                 import time
                 time.sleep(1)
                 status_container.empty()
                 
-                # 4. Auto-Select
+                # 5. Auto-Select
                 run_id = Path(run_dir).name.split("_")[1] # run_123_layered -> 123
                 # We need to refresh the list, backend.list_pipeline_runs() is called below
                 # Force reload by rerun
@@ -631,51 +635,59 @@ def main():
     
     # --- CANVAS EDITOR (for positioning) ---
     st.markdown("---")
-    with st.expander("🔧 Advanced: Canvas Editor (for positioning)", expanded=False):
+    with st.expander("🔧 Advanced: Canvas Editor (for positioning)", expanded=True):
         col1, col2 = st.columns([5, 1])
-    
-    with col1:
-        st.subheader("Interactive Editor")
-        # Dynamic Key to force update when needed
-        c_key = f"canvas_{selected_run_id}_v{st.session_state.canvas_version}"
         
-        canvas_result = st_canvas(
-            fill_color="rgba(255, 165, 0, 0.3)",
-            stroke_width=2,
-            stroke_color="#000000",
-            background_color="#ffffff",
-            update_streamlit=True,
-            height=canvas_height,
-            width=canvas_width,
-            drawing_mode="transform",
-            initial_drawing={"version": "4.4.0", "objects": final_drawing_objects},
-            key=c_key,
-        )
-        
-        # Save state for next run
-        if canvas_result.json_data:
-            st.session_state.last_canvas_state = canvas_result.json_data
+        with col1:
+            st.subheader("Interactive Editor")
+            # Dynamic Key to force update when needed
+            c_key = f"canvas_{selected_run_id}_v{st.session_state.canvas_version}"
             
-    with col2:
-        st.subheader("Data Inspector")
-        if canvas_result.json_data:
-            objects = canvas_result.json_data["objects"]
-            # Filter out the background image from inspector
-            editable_objects = [o for o in objects if o.get("type") != "image"]
+            # Use final_composed.png as background if it exists
+            canvas_bg_image = None
+            if final_composed_path and final_composed_path.exists():
+                canvas_bg_image = Image.open(final_composed_path)
+                # Resize to canvas dimensions
+                canvas_bg_image = canvas_bg_image.resize((canvas_width, canvas_height), Image.Resampling.LANCZOS)
             
-            st.write(f"Active Objects: {len(editable_objects)}")
-            # Show modified objects
-            for i, obj in enumerate(editable_objects):
-                st.caption(f"Object {i} ({obj['type']})")
-                st.json({
-                    "u_id": obj.get("u_id", "MISSING"),
-                    "text": obj.get("text", "N/A"),
-                    "left": int(obj["left"]),
-                    "top": int(obj["top"]),
-                    "width": int(obj["width"] * obj.get("scaleX", 1)),
-                    "height": int(obj["height"] * obj.get("scaleY", 1)),
-                    "fill": obj["fill"]
-                })
+            canvas_result = st_canvas(
+                fill_color="rgba(255, 165, 0, 0.3)",
+                stroke_width=2,
+                stroke_color="#000000",
+                background_image=canvas_bg_image,
+                background_color="#ffffff",
+                update_streamlit=True,
+                height=canvas_height,
+                width=canvas_width,
+                drawing_mode="transform",
+                initial_drawing={"version": "4.4.0", "objects": []},  # No overlays, image is rendered
+                key=c_key,
+            )
+            
+            # Save state for next run
+            if canvas_result.json_data:
+                st.session_state.last_canvas_state = canvas_result.json_data
+            
+        with col2:
+            st.subheader("Data Inspector")
+            if canvas_result.json_data:
+                objects = canvas_result.json_data["objects"]
+                # Filter out the background image from inspector
+                editable_objects = [o for o in objects if o.get("type") != "image"]
+                
+                st.write(f"Active Objects: {len(editable_objects)}")
+                # Show modified objects
+                for i, obj in enumerate(editable_objects):
+                    st.caption(f"Object {i} ({obj['type']})")
+                    st.json({
+                        "u_id": obj.get("u_id", "MISSING"),
+                        "text": obj.get("text", "N/A"),
+                        "left": int(obj["left"]),
+                        "top": int(obj["top"]),
+                        "width": int(obj["width"] * obj.get("scaleX", 1)),
+                        "height": int(obj["height"] * obj.get("scaleY", 1)),
+                        "fill": obj.get("fill", "N/A")
+                    })
 
 if __name__ == "__main__":
     main()
