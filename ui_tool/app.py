@@ -319,7 +319,10 @@ def main():
         for i, region in enumerate(text_regions):
             gemini = region.get("gemini_analysis", {})
             role = gemini.get("role", "body")
-            if role in ["product_text", "logo"]:
+            
+            # V4.11 FIX: Exclude Preserved/Protected roles from Editor
+            # Matches backend logic: IF preserved in BG, DO NOT allow editing/rendering on top
+            if role in ["product_text", "logo", "icon", "label", "ui_element", "usp"]:
                 continue
                 
             rid = region.get("id", i)

@@ -346,7 +346,7 @@ def render_text_layer(base_image, report_data, scale_check=True):
 
 if __name__ == "__main__":
     # Hardcoded input for the specific run
-    RUN_ID = "run_1767781853_layered"  
+    RUN_ID = "run_1767878379_layered"  
     BASE_DIR = Path("pipeline_outputs") / RUN_ID
     
     # Try to load report with boxes first, fallback to regular
