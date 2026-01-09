@@ -30,13 +30,21 @@ A web-based interface for the Image Text Removal & Editing Pipeline.
    GOOGLE_FONTS_API_KEY=your_google_fonts_api_key
    ```
 
-3. **Run the Streamlit app**:
+3. **Run the unified app**:
    ```bash
-   streamlit run streamlit_app.py
+   streamlit run app.py
    ```
 
 4. **Open in browser**:
    Navigate to `http://localhost:8501`
+
+### Unified Workflow
+
+The `app.py` provides a complete workflow in one interface:
+1. **Upload** - Upload an image from the sidebar
+2. **Process** - Click "Process Image" to run the full pipeline
+3. **Edit** - Edit text and CTA boxes directly on the canvas
+4. **Save** - Download your edited image
 
 ### Streamlit Cloud Deployment
 
@@ -46,7 +54,7 @@ A web-based interface for the Image Text Removal & Editing Pipeline.
    - Go to [share.streamlit.io](https://share.streamlit.io)
    - Click "New App"
    - Connect your GitHub repository
-   - Set **Main file path**: `streamlit_app.py`
+   - Set **Main file path**: `app.py`
 
 3. **Configure Secrets**:
    - Go to "Advanced Settings" → "Secrets"
@@ -79,38 +87,30 @@ A web-based interface for the Image Text Removal & Editing Pipeline.
 
 ## Usage
 
-### Basic Pipeline
+### Complete Workflow (app.py)
 
-1. **Upload Image**: Click "Browse files" and select an image (PNG, JPG, JPEG)
-2. **Run Pipeline**: Click "🚀 Run Pipeline" button
-3. **Wait for Processing**: Monitor progress in the progress bar
-4. **View Results**: 
-   - See the final composed image
-   - View individual layers
-   - Check extracted background boxes
-   - Download the final image
+1. **Upload Image**: 
+   - Use the sidebar file uploader
+   - Select PNG, JPG, or JPEG image
+   - Preview appears automatically
 
-### Canvas Editor (Advanced Editing)
+2. **Process Image**: 
+   - Click "🚀 Process Image" button
+   - Wait for pipeline to complete (3 stages)
+   - Image automatically loads for editing
 
-1. **Run the Editor**: 
-   ```bash
-   streamlit run streamlit_editor.py
-   ```
+3. **Edit Elements**:
+   - **Select Element Type**: Choose "Text" or "CTA Box"
+   - **Select Element**: Pick specific text or box to edit
+   - **Edit Properties**:
+     - **Text**: Content, position (X/Y), size (width/height), font, color
+     - **CTA Box**: Position, size, background color
+   - **Real-time Preview**: See changes instantly on canvas
 
-2. **Load Pipeline Result**: 
-   - Select a pipeline run from the sidebar
-   - Click "Load Run" to load the data
-
-3. **Edit Text Elements**:
-   - **Select Region**: Choose a text region from the dropdown
-   - **Edit Text**: Change text content in the text area
-   - **Move**: Adjust X/Y position with number inputs or arrow buttons
-   - **Resize**: Change width/height or use resize buttons
-   - **Font**: Change font family, weight, and size
-   - **Color**: Pick a new text color
-   - **Preview**: See changes in real-time on the canvas
-
-4. **Save**: Click "Save Edited Image" to export your changes
+4. **Save**: 
+   - Click "💾 Save Edited Image"
+   - Download button appears automatically
+   - Image saved to pipeline run directory
 
 ## Output Structure
 
