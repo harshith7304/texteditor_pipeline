@@ -105,6 +105,7 @@ def main():
         
     report = data["report"]
     bg_image = data["background_image"]
+    run_dir = data["run_dir"]  # Extract for later use
     
     # --- INJECT GOOGLE FONTS CSS FOR BROWSER RENDERING ---
     # Fabric.js canvas runs in the browser and needs fonts loaded via CSS, not server-side
