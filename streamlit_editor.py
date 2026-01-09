@@ -30,6 +30,9 @@ try:
         composite_layers,
         draw_background_boxes
     )
+    from pipeline_v4.run_pipeline_layered_v4 import run_pipeline_layered
+    from pipeline_v4.run_pipeline_box_detection_v4 import run_box_detection_pipeline
+    from pipeline_v4.run_pipeline_text_rendering_v4 import render_text_layer
     from pipeline_v4.rendering.google_fonts_runtime_loader import get_font_path
 except ImportError as e:
     st.error(f"Failed to import required modules: {e}")
@@ -180,7 +183,114 @@ st.title("✏️ Canvas Editor - Text Editing & Layout")
 
 # Sidebar for pipeline selection
 with st.sidebar:
-    st.header("📂 Load Pipeline Result")
+    st.header("📤 Upload & Process")
+    
+    # Upload new image
+    st.subheader("Upload New Image")
+    uploaded_file = st.file_uploader(
+        "Choose an image file",
+        type=['png', 'jpg', 'jpeg'],
+        help="Upload an image to process and edit",
+        key="editor_upload"
+    )
+    
+    if uploaded_file is not None:
+        # Display preview
+        preview_img = Image.open(uploaded_file)
+        st.image(preview_img, caption="Uploaded Image", use_container_width=True)
+        
+        # Save and run pipeline
+        if st.button("🚀 Process Image", type="primary", use_container_width=True, key="process_new"):
+            with st.spinner("Processing image..."):
+                # Save uploaded file
+                temp_dir = Path(tempfile.gettempdir()) / "pipeline_uploads"
+                temp_dir.mkdir(exist_ok=True)
+                image_path = temp_dir / uploaded_file.name
+                with open(image_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                
+                # Run pipeline
+                progress_container = st.container()
+                progress_container.info("🔄 Running pipeline...")
+                progress_bar = progress_container.progress(0.0)
+                
+                try:
+                    # Stage 1: Layered Pipeline
+                    progress_bar.progress(0.1)
+                    run_dir = run_pipeline_layered(str(image_path), mock_layers_dir=None)
+                    progress_bar.progress(0.4)
+                    
+                    if not run_dir or not Path(run_dir).exists():
+                        raise Exception("Stage 1 failed: No output directory created")
+                    
+                    # Stage 2: Box Detection
+                    progress_bar.progress(0.5)
+                    run_box_detection_pipeline(run_dir)
+                    progress_bar.progress(0.7)
+                    
+                    # Stage 3: Text Rendering
+                    progress_bar.progress(0.75)
+                    
+                    # Load report
+                    report_with_boxes = Path(run_dir) / "pipeline_report_with_boxes.json"
+                    report_orig = Path(run_dir) / "pipeline_report.json"
+                    report_file = report_with_boxes if report_with_boxes.exists() else report_orig
+                    
+                    if not report_file.exists():
+                        raise Exception("Pipeline report not found")
+                    
+                    with open(report_file, "r") as f:
+                        report = json.load(f)
+                    
+                    # Get original dimensions
+                    orig_w, orig_h = 1080, 1920
+                    if "original_size" in report:
+                        orig_w = report["original_size"]["width"]
+                        orig_h = report["original_size"]["height"]
+                    
+                    progress_bar.progress(0.8)
+                    
+                    # Composite layers
+                    base_img = composite_layers(str(run_dir), report)
+                    if base_img is None:
+                        raise Exception("Failed to composite layers")
+                    
+                    progress_bar.progress(0.85)
+                    
+                    # Draw background boxes
+                    base_img = draw_background_boxes(base_img, report, orig_w, orig_h, str(run_dir))
+                    
+                    progress_bar.progress(0.9)
+                    
+                    # Render text (for final preview, but we'll use base for editing)
+                    final_img = render_text_layer(base_img.copy(), report)
+                    
+                    # Save final image
+                    out_path = Path(run_dir) / "final_composed.png"
+                    final_img.save(out_path)
+                    
+                    progress_bar.progress(1.0)
+                    
+                    # Load into editor
+                    st.session_state.editor_data = {
+                        'report': report,
+                        'base_image': base_img,
+                        'run_dir': str(run_dir),
+                        'text_regions': get_editable_regions(report),
+                        'selected_region': None,
+                        'edited_regions': {}
+                    }
+                    
+                    progress_container.success("✅ Pipeline completed! Image loaded for editing.")
+                    st.rerun()
+                    
+                except Exception as e:
+                    progress_container.error(f"❌ Pipeline failed: {str(e)}")
+                    import traceback
+                    st.error(f"Error details:\n```\n{traceback.format_exc()}\n```")
+    
+    st.divider()
+    st.header("📂 Load Existing Result")
     
     # Option 1: Select from existing runs
     pipeline_outputs = Path("pipeline_outputs")
