@@ -84,9 +84,12 @@ def draw_background_boxes(base_image, report_data, orig_w, orig_h, run_dir):
             if full_path.exists():
                 box_img = Image.open(full_path).convert("RGBA")
                 
-                # Get position from layer_bbox (already in layer/canvas coords)
-                box_x = layer_bbox.get("x", 0)
-                box_y = layer_bbox.get("y", 0)
+                # ANTIGRAVITY FIX: Use 'bbox' for PLACEMENT (allows moving), 'layer_bbox' was source
+                # If bbox exists in bg_box, use it. Otherwise fallback.
+                target_bbox = bg_box.get("bbox", layer_bbox)
+                
+                box_x = target_bbox.get("x", 0)
+                box_y = target_bbox.get("y", 0)
                 
                 # Composite onto base image
                 base_image.paste(box_img, (box_x, box_y), box_img)
