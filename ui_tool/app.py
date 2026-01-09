@@ -407,9 +407,39 @@ def main():
             bg_box = region.get("background_box", {})
             if role == "usp" and not bg_box.get("detected", False):
                  continue
-                
+            
             rid = region.get("id", i)
             orig_text = gemini.get("text", "")
+            
+            # Debug: Show what's being filtered
+            if i == 0:  # Only for first region to avoid spam
+                with st.sidebar.expander("📋 Region Filtering Debug", expanded=False):
+                    st.write(f"**Total Regions**: {len(text_regions)}")
+                    filter_summary = {"shown": [], "filtered": []}
+                    for r in text_regions:
+                        r_id = r.get("id")
+                        r_gemini = r.get("gemini_analysis", {})
+                        r_role = r_gemini.get("role", "body")
+                        r_text = r_gemini.get("text", "")[:20]
+                        
+                        # Apply same filtering logic
+                        if r.get("layer_residue", False):
+                            filter_summary["filtered"].append(f"R{r_id}: {r_role} - RESIDUE")
+                        elif r_role in ["product_text", "logo", "icon", "label", "ui_element"]:
+                            filter_summary["filtered"].append(f"R{r_id}: {r_role} - PROTECTED")
+                        elif r_role == "usp" and not r.get("background_box", {}).get("detected", False):
+                            filter_summary["filtered"].append(f"R{r_id}: USP - PRESERVED")
+                        else:
+                            filter_summary["shown"].append(f"R{r_id}: {r_role} - '{r_text}...'")
+                    
+                    st.markdown("**✅ Shown in Editor:**")
+                    for item in filter_summary["shown"]:
+                        st.write(f"  • {item}")
+                    
+                    st.markdown("**❌ Filtered Out:**")
+                    for item in filter_summary["filtered"]:
+                        st.write(f"  • {item}")
+
             
             # Text Input
             new_text = st.text_area(f"Text {rid} ({role})", value=orig_text, height=70)
