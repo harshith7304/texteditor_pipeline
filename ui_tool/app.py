@@ -607,17 +607,15 @@ def main():
     with col_canvas:
         # Preparation: Use Cleaned Background (bg_image) + Interactive Text Objects
         
-        # 1. Prepare Objects for Fabric
-        canvas_objects = []
-        
+        # 1. Prepare Text Objects for Fabric
+        canvas_text_objects = []
         for region in text_regions:
             gemini = region.get("gemini_analysis", {})
             if not gemini: continue
             
-            rid = region.get("id")
             role = gemini.get("role", "body")
             
-            # Skip residues / protected (unless movable)
+            # Skip residues / protected
             if region.get("layer_residue", False): continue
             if role in ["product_text", "logo", "icon", "label", "ui_element"]: continue
             
@@ -625,37 +623,7 @@ def main():
             bg_box = region.get("background_box", {})
             if role == "usp" and not bg_box.get("detected", False): continue
             
-            # A. BACKGROUND BOX (CTA/Banner)
-            if bg_box.get("detected") and bg_box.get("extracted_image"):
-                box_path = Path(run_dir) / bg_box["extracted_image"]
-                if box_path.exists():
-                    import base64
-                    from io import BytesIO
-                    
-                    # Load and encode box image
-                    box_img = Image.open(box_path).convert("RGBA")
-                    buffered = BytesIO()
-                    box_img.save(buffered, format="PNG")
-                    box_b64 = base64.b64encode(buffered.getvalue()).decode()
-                    
-                    bbox = bg_box["bbox"]
-                    
-                    canvas_objects.append({
-                        "type": "image",
-                        "version": "4.4.0",
-                        "originX": "left", "originY": "top",
-                        "left": bbox["x"] * scale_x,
-                        "top": bbox["y"] * scale_y,
-                        "width": bbox["width"] * scale_x,
-                        "height": bbox["height"] * scale_y,
-                        "src": f"data:image/png;base64,{box_b64}",
-                        "scaleX": 1, "scaleY": 1,
-                        "opacity": 1,
-                        "selectable": True,
-                        "u_id": f"box_{rid}" # ID to track box movement
-                    })
-            
-            # B. TEXT OBJECT
+            rid = region.get("id")
             bbox = region["bbox"]
             text = gemini.get("text", "")
             # Check for edits
@@ -666,7 +634,9 @@ def main():
             font_name = gemini.get("primary_font", "Roboto")
             font_weight = gemini.get("font_weight", 400)
             
-            canvas_objects.append({
+            # Scale to canvas
+            # Note: Fabric line-height is ~1.16 by default. PIL is ~1.2.
+            canvas_text_objects.append({
                 "type": "textbox",
                 "version": "4.4.0",
                 "originX": "left", "originY": "top",
@@ -675,7 +645,7 @@ def main():
                 "width": bbox["width"] * scale_x,
                 "height": bbox["height"] * scale_y,
                 "text": text,
-                "fontSize": int(bbox["height"] * scale_y * 0.75),
+                "fontSize": int(bbox["height"] * scale_y * 0.75), # Tuning
                 "fontFamily": font_name,
                 "fontWeight": font_weight,
                 "fill": color,
@@ -688,9 +658,12 @@ def main():
         # 2. Render Canvas
         c_key = f"canvas_{selected_run_id}_v{st.session_state.canvas_version}"
         
+        # Use background_image (cleaned layout) if available
+        # Note: We must NOT use final_composed.png here, or we get double text.
+        # bg_image loaded in Step 2 is the one we want.
         final_bg = bg_image.resize((canvas_width, canvas_height), Image.Resampling.LANCZOS) if bg_image else None
         
-        # Inject CSS fallback for background
+        # Inject CSS fallback for background just in case
         if final_bg:
             import base64
             from io import BytesIO
@@ -708,16 +681,17 @@ def main():
             </style>
             ''', unsafe_allow_html=True)
 
+        
         canvas_result = st_canvas(
             fill_color="rgba(255, 165, 0, 0.3)",
             stroke_width=2,
             stroke_color="#000000",
-            background_color="transparent",
+            background_color="transparent", # Rely on CSS
             update_streamlit=True,
             height=canvas_height,
             width=canvas_width,
             drawing_mode="transform",
-            initial_drawing={"version": "4.4.0", "objects": canvas_objects},
+            initial_drawing={"version": "4.4.0", "objects": canvas_text_objects},
             key=c_key,
         )
         
@@ -734,37 +708,26 @@ def main():
                     objects = canvas_result.json_data.get("objects", [])
                     
                     text_updates_map = {}
-                    text_pos_map = {}
-                    box_pos_map = {}
+                    position_updates_map = {}
                     
                     for obj in objects:
-                        uid = obj.get("u_id", "")
-                        
-                        # Handle Text Objects
-                        if uid.startswith("text_") and obj.get("type") == "textbox":
-                            rid = uid.replace("text_", "")
-                            text_updates_map[rid] = obj.get("text", "")
-                            text_pos_map[rid] = {
-                                "x": int(obj["left"] / scale_x),
-                                "y": int(obj["top"] / scale_y),
-                                "width": int(obj["width"] * obj.get("scaleX", 1) / scale_x),
-                                "height": int(obj["height"] * obj.get("scaleY", 1) / scale_y)
-                            }
-                            
-                        # Handle Background Box Objects
-                        elif uid.startswith("box_") and obj.get("type") == "image":
-                            rid = uid.replace("box_", "")
-                            # Note: image object width/height is the ORIGINAL * scaleX/Y
-                            # obj['width'] is usually the original image width
-                            box_pos_map[rid] = {
-                                "x": int(obj["left"] / scale_x),
-                                "y": int(obj["top"] / scale_y),
-                                # width/height might need calculation if scaled
-                                "width": int(obj["width"] * obj.get("scaleX", 1) / scale_x),
-                                "height": int(obj["height"] * obj.get("scaleY", 1) / scale_y)
-                            }
+                        if obj.get("type") == "textbox":
+                            uid = obj.get("u_id", "")
+                            if uid.startswith("text_"):
+                                rid = uid.replace("text_", "")
+                                
+                                # Text Content
+                                text_updates_map[rid] = obj.get("text", "")
+                                
+                                # Position (Scale back to original)
+                                position_updates_map[rid] = {
+                                    "x": int(obj["left"] / scale_x),
+                                    "y": int(obj["top"] / scale_y),
+                                    "width": int(obj["width"] * obj.get("scaleX", 1) / scale_x),
+                                    "height": int(obj["height"] * obj.get("scaleY", 1) / scale_y)
+                                }
                     
-                    # 2. Update Report JSON
+                    # 2. Update Report JSON (Positions)
                     report_path = Path(run_dir) / "pipeline_report_with_boxes.json"
                     if not report_path.exists(): report_path = Path(run_dir) / "pipeline_report.json"
                     
@@ -774,20 +737,13 @@ def main():
                         
                         for region in updated_report.get("text_detection", {}).get("regions", []):
                             rid_str = str(region.get("id"))
-                            
-                            # Update Text BBox
-                            if rid_str in text_pos_map:
-                                region["bbox"] = text_pos_map[rid_str]
-                                
-                            # Update Background Box BBox
-                            if rid_str in box_pos_map and "background_box" in region:
-                                region["background_box"]["bbox"] = box_pos_map[rid_str]
-                                # Note: We assume layer_bbox should sync or pipeline uses bbox (which we fixed)
+                            if rid_str in position_updates_map:
+                                region["bbox"] = position_updates_map[rid_str]
                         
                         with open(report_path, "w") as f:
                             json.dump(updated_report, f, indent=2)
 
-                    # 3. Call Pipeline Rendering
+                    # 3. Call Pipeline Rendering (Text Content updates passed directly)
                     rendered_img = backend.render_with_pipeline(run_dir, text_updates_map)
                     
                     if rendered_img:
@@ -965,7 +921,7 @@ def main():
         st.markdown("🟡 Yellow = CTA")
         st.markdown("🟣 Purple = USP")
             
-        with col2:
+        with col_controls:
             st.subheader("Data Inspector")
             if canvas_result.json_data:
                 objects = canvas_result.json_data["objects"]
